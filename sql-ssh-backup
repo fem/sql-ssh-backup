@@ -6,10 +6,8 @@
 # Each database can be dumped as a single file and can be compressed optional.
 #
 # Copyright (c) 2011 Peter Grosse (gentoo@friiks.de)
-# Copyright (c) 2010-2013 Marcel Pennewiss (opensource@pennewiss.de)
+# Copyright (c) 2010-2017 Marcel Pennewiss (opensource@pennewiss.de)
 # Forschungsgemeinschaft elektronische Medien e.V. (FeM e.V.)
-#
-# Copyright (c) 2012 Marcel Pennewiss, Werbeagentur Pennewiﬂ (opensource@pennewiss.de)
 #
 # Current Version: 1.8.2
 # Last Modified: 2017-02-17
