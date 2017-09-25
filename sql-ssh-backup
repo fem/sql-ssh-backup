@@ -9,8 +9,8 @@
 # Copyright (c) 2010-2017 Marcel Pennewiss (opensource@pennewiss.de)
 # Forschungsgemeinschaft elektronische Medien e.V. (FeM e.V.)
 #
-# Current Version: 1.8.2
-# Last Modified: 2017-02-17
+# Current Version: 1.8.3
+# Last Modified: 2017-09-24
 #
 # USAGE:
 #   Start sql-ssh-backup with the "-h" option to show usage/help.
@@ -46,6 +46,7 @@
 #     1.8 - Allow dump of a single database, fix some prepare-checks
 #   1.8.1 - Bugfix for dump all databases as single files
 #   1.8.2 - Use password instead of pass in cnf-file
+#   1.8.3 - Add ignore information schema for full mysql dumps
 #
 # LICENSE: GPL-2
 #
@@ -63,7 +64,7 @@
 
 # show usage information
 print_usage() {
-  echo "SQL-SSH-Backup v1.8.2"
+  echo "SQL-SSH-Backup v1.8.3"
   echo "Create MySQL-/PosgreSQL-Dumps via SSH using RSA or DSA authentication (private key)."
   echo "Each database will be dumped as a single file and can be compressed optional."
   echo ""
@@ -85,6 +86,7 @@ print_usage() {
   echo " -j                  MySQL: Use xz compression - dumps will be compressed on the local machine"
   echo " -o                  Dump all databases together (use at most 3 connections)"
   echo " -D <database>       Dump single database <database>"
+  echo " -I                  Ignore MySQL information_schema database (ignored if -D or -T pgsql is used)"
   echo " -h                  Show this help"
   echo ""
 }
@@ -112,6 +114,9 @@ prepare()
   
   # disable xz compression (default) if unset
   [ -z ${COMPRESS_XZ} ] && COMPRESS_XZ=false
+  
+  # disable ignore information schema (default) if unset
+  [ -z ${IGNORE_INFORMATIONSCHEMA} ] && IGNORE_INFORMATIONSCHEMA=false
 
   # check if both compressions selected
   ( ${COMPRESS} && ${COMPRESS_XZ} ) && echo "You should select bzip2 (-c) or xz (-j) for compression - not both." && echo "Start sql-ssh-backup with the \"-h\" option to show usage/help." && exit 1
@@ -349,6 +354,9 @@ dump_databases_by_list()
 {
   for DATABASE in ${1}
   do
+    # Ignore information_schema databse if option selected
+    ${MYSQL} && ${IGNORE_INFORMATIONSCHEMA} && [ ${DATABASE} == 'information_schema' ] && continue
+    # Dump database
     dump_database ${DATABASE}
     [ $? -eq 0 ] && check_database_dump ${DATABASE}
     [ $? -eq 0 ] && ${MYSQL} && (${COMPRESS} || ${COMPRESS_XZ}) && compress_database ${DATABASE}
@@ -382,7 +390,7 @@ cleanup()
 }
 
 # run main part
-while getopts ":hT:l:s:P:i:m:u:p:d:te:cjoD:" Option; do
+while getopts ":hT:l:s:P:i:m:u:p:d:te:cjoD:I" Option; do
   case $Option in
     h ) print_usage && exit 0;;
     T ) DATABASE_TYPE=${OPTARG};;
@@ -400,6 +408,7 @@ while getopts ":hT:l:s:P:i:m:u:p:d:te:cjoD:" Option; do
     j ) COMPRESS_XZ=true;;
     o ) ALLDATABASES=true;;
     D ) DATABASE=${OPTARG};;
+    I ) IGNORE_INFORMATIONSCHEMA=true;;
     * ) echo "Unknown parameter \"-${OPTARG}\"!"; 
 	print_usage
 	exit 1;;
