@@ -361,8 +361,8 @@ dump_databases_by_list()
     # Dump database
     dump_database ${DATABASE}
     [ $? -eq 0 ] && check_database_dump ${DATABASE}
-    [ $? -eq 0 ] && (${MYSQL} || ${POSTGRESQL}) && (${COMPRESS} || ${COMPRESS_XZ}) && compress_database ${DATABASE}
-    [ $? -eq 0 ] && (${MYSQL} || ${POSTGRESQL}) && ${COMPRESS} && check_compressed_database ${DATABASE} 
+    [ $? -eq 0 ] && ((${MYSQL} && (${COMPRESS} || ${COMPRESS_XZ})) || (${POSTGRESQL} && ${COMPRESS_XZ})) && compress_database ${DATABASE}
+    [ $? -eq 0 ] && ((${MYSQL} && (${COMPRESS} || ${COMPRESS_XZ})) || (${POSTGRESQL} && ${COMPRESS_XZ})) && check_compressed_database ${DATABASE}
   done
 }
 
@@ -371,8 +371,8 @@ dump_all_databases()
 {
   dump_database "--all-databases"
   [ $? -eq 0 ] && check_database_dump dump
-  [ $? -eq 0 ] && (${MYSQL} || ${POSTGRESQL}) && (${COMPRESS} || ${COMPRESS_XZ}) && compress_database dump
-  [ $? -eq 0 ] && (${MYSQL} || ${POSTGRESQL}) && ${COMPRESS} && check_compressed_database dump
+  [ $? -eq 0 ] && ((${MYSQL} && (${COMPRESS} || ${COMPRESS_XZ})) || (${POSTGRESQL} && ${COMPRESS_XZ})) && compress_database dump
+  [ $? -eq 0 ] && ((${MYSQL} && (${COMPRESS} || ${COMPRESS_XZ})) || (${POSTGRESQL} && ${COMPRESS_XZ})) && check_compressed_database dump
 }
 
 # cleanup local and remote
