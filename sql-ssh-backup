@@ -34,8 +34,8 @@
 #     1.3 - merge release supporting MySQL and PostgreSQL
 #     1.4 - add option for time (hh:mm) in backup directory
 #     1.5 - create temporary my.cnf-config for username/password in mysql
-#	        fix output of failed ssh/scp-session
-#	        add flag for ssh port (database-type selection changed!)
+#           fix output of failed ssh/scp-session
+#           add flag for ssh port (database-type selection changed!)
 #   1.5.1 - remove many bashisms
 #   1.5.2 - fix some syntax errors
 #     1.6 - create temporary pgpass-config for username/password in pgsql
