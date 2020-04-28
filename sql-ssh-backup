@@ -9,7 +9,7 @@
 # Copyright (c) 2010-2017 Marcel Pennewiss (opensource@pennewiss.de)
 # Forschungsgemeinschaft elektronische Medien e.V. (FeM e.V.)
 #
-# Current Version: 1.8.4
+# Current Version: 1.8.5
 # Last Modified: 2020-04-28
 #
 # USAGE:
@@ -48,6 +48,7 @@
 #   1.8.2 - Use password instead of pass in cnf-file
 #   1.8.3 - Add ignore information schema for full mysql dumps
 #   1.8.4 - Fix checks to prevent error on missing tempfile
+#   1.8.5 - Allow xz compression for PostgreSQL
 #
 # LICENSE: GPL-2
 #
@@ -84,7 +85,7 @@ print_usage() {
   echo " -e <days>           Number of days after which old dumps will be deleted"
   echo " -c                  MySQL: Use bzip2 compression - dumps will be compressed on the local machine"
   echo "                     PgSQL: Use custom dump file format, instead of save uncompressed plain SQL files"
-  echo " -j                  MySQL: Use xz compression - dumps will be compressed on the local machine"
+  echo " -j                  MySQL/PgSQL: Use xz compression - dumps will be compressed on the local machine"
   echo " -o                  Dump all databases together (use at most 3 connections)"
   echo " -D <database>       Dump single database <database>"
   echo " -I                  Ignore MySQL information_schema database (ignored if -D or -T pgsql is used)"
@@ -162,9 +163,9 @@ prepare()
 
   # check for installed bzip2 while using mysql
   ${MYSQL} && ${COMPRESS} && (which bzip2 > /dev/null 2>&1 || (echo "bzip2 not found and compression enabled! Skipping all backups!" >&2 && exit 1))
-  
-  # check for installed xz while using mysql
-  ${MYSQL} && ${COMPRESS_XZ} && (which xz > /dev/null 2>&1 || (echo "xz not found and compression enabled! Skipping all backups!" >&2 && exit 1))
+
+  # check for installed xz while using mysql/pgsql
+  ( ${MYSQL} || ${POSTGRESQL} ) && ${COMPRESS_XZ} && (which xz > /dev/null 2>&1 || (echo "xz not found and compression enabled! Skipping all backups!" >&2 && exit 1))
 
   # abort if too man errors occured
   [ ${ERROR} -ge 1 ] && echo && echo "Too man errors occured. Aborting..." && exit 1
@@ -360,8 +361,8 @@ dump_databases_by_list()
     # Dump database
     dump_database ${DATABASE}
     [ $? -eq 0 ] && check_database_dump ${DATABASE}
-    [ $? -eq 0 ] && ${MYSQL} && (${COMPRESS} || ${COMPRESS_XZ}) && compress_database ${DATABASE}
-    [ $? -eq 0 ] && ${MYSQL} && ${COMPRESS} && check_compressed_database ${DATABASE}
+    [ $? -eq 0 ] && (${MYSQL} || ${POSTGRESQL}) && (${COMPRESS} || ${COMPRESS_XZ}) && compress_database ${DATABASE}
+    [ $? -eq 0 ] && (${MYSQL} || ${POSTGRESQL}) && ${COMPRESS} && check_compressed_database ${DATABASE} 
   done
 }
 
@@ -370,8 +371,8 @@ dump_all_databases()
 {
   dump_database "--all-databases"
   [ $? -eq 0 ] && check_database_dump dump
-  [ $? -eq 0 ] && (${MYSQL} || ${ALLDATABASES}) && (${COMPRESS} || ${COMPRESS_XZ}) && compress_database dump
-  [ $? -eq 0 ] && (${MYSQL} || ${ALLDATABASES}) && ${COMPRESS} && check_compressed_database dump
+  [ $? -eq 0 ] && (${MYSQL} || ${POSTGRESQL}) && (${COMPRESS} || ${COMPRESS_XZ}) && compress_database dump
+  [ $? -eq 0 ] && (${MYSQL} || ${POSTGRESQL}) && ${COMPRESS} && check_compressed_database dump
 }
 
 # cleanup local and remote
