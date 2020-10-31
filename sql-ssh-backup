@@ -173,7 +173,7 @@ prepare()
   # check for installed bzip2 while using mysql or mongodb
   (${MYSQL} || ${MONGODB}) && ${COMPRESS} && (which bzip2 > /dev/null 2>&1 || (echo "bzip2 not found and compression enabled! Skipping all backups!" >&2 && exit 1))
 
-  # check for installed xz while using mysql,pgsql or mongodb
+  # check for installed xz while using mysql, pgsql or mongodb
   ${COMPRESS_XZ} && (which xz > /dev/null 2>&1 || (echo "xz not found and compression enabled! Skipping all backups!" >&2 && exit 1))
 
   # abort if too man errors occured
