@@ -174,7 +174,7 @@ prepare()
   (${MYSQL} || ${MONGODB}) && ${COMPRESS} && (which bzip2 > /dev/null 2>&1 || (echo "bzip2 not found and compression enabled! Skipping all backups!" >&2 && exit 1))
 
   # check for installed xz while using mysql,pgsql or mongodb
-  ( ${MYSQL} || ${POSTGRESQL} || ${MONGODB} ) && ${COMPRESS_XZ} && (which xz > /dev/null 2>&1 || (echo "xz not found and compression enabled! Skipping all backups!" >&2 && exit 1))
+  ${COMPRESS_XZ} && (which xz > /dev/null 2>&1 || (echo "xz not found and compression enabled! Skipping all backups!" >&2 && exit 1))
 
   # abort if too man errors occured
   [ ${ERROR} -ge 1 ] && echo && echo "Too man errors occured. Aborting..." && exit 1
