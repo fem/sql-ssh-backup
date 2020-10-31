@@ -2,15 +2,15 @@
 #
 # sql-ssh-backup
 #
-# Create MySQL- or PostgreSQL-Dumps via SSH using RSA or DSA authentication (private key).
+# Create MySQL-, PostgreSQL or MongoDB-Dumps via SSH using RSA or DSA authentication (private key).
 # Each database can be dumped as a single file and can be compressed optional.
 #
 # Copyright (c) 2011 Peter Grosse (gentoo@friiks.de)
-# Copyright (c) 2010-2017 Marcel Pennewiss (opensource@pennewiss.de)
+# Copyright (c) 2010-2020 Marcel Pennewiss (opensource@pennewiss.de)
 # Forschungsgemeinschaft elektronische Medien e.V. (FeM e.V.)
 #
-# Current Version: 1.8.5
-# Last Modified: 2020-04-28
+# Current Version: 2.0
+# Last Modified: 2020-10-31
 #
 # USAGE:
 #   Start sql-ssh-backup with the "-h" option to show usage/help.
@@ -23,6 +23,8 @@
 #     * mysql / mysqldump (on remote server)
 #   PostgreSQL:
 #     * psql / pg_dump (on remote server)
+#   MongoDB:
+#     * mongodump (on remote server)
 #
 # INSTALLATION: 
 #   Copy the shell script to a suitable location
@@ -49,6 +51,7 @@
 #   1.8.3 - Add ignore information schema for full mysql dumps
 #   1.8.4 - Fix checks to prevent error on missing tempfile
 #   1.8.5 - Allow xz compression for PostgreSQL
+#     2.0 - Include MongoDB (without authentication on mongodb)
 #
 # LICENSE: GPL-2
 #
@@ -72,7 +75,7 @@ print_usage() {
   echo ""
   echo "Usage $0 [OPTIONS]"
   echo ""
-  echo " -T [type]           Type of Database (type: mysql or pgsql)"
+  echo " -T [type]           Type of Database (type: mysql, pgsql or mongodb)"
   echo " -l <ssh-login>      User to log in as on the remote machine (defaul: current user)"
   echo " -s <ssh-server>     Remote machine to log in"
   echo " -P <ssh-port>       Remote port for ssh"
@@ -83,12 +86,13 @@ print_usage() {
   echo " -d <backup-dir>     Base-directory where dumps will be stored (default: {scriptpath}/{ssh-server})"
   echo " -t                  Add subdirectory (hh-mm) to backup directory to allow multiple backups a day"
   echo " -e <days>           Number of days after which old dumps will be deleted"
-  echo " -c                  MySQL: Use bzip2 compression - dumps will be compressed on the local machine"
+  echo " -c                  MySQL/MongoDB: Use bzip2 compression - dumps will be compressed on the local machine"
   echo "                     PgSQL: Use custom dump file format, instead of save uncompressed plain SQL files"
-  echo " -j                  MySQL/PgSQL: Use xz compression - dumps will be compressed on the local machine"
+  echo " -j                  MySQL/PgSQL/MongoDB: Use xz compression - dumps will be compressed on the local machine"
   echo " -o                  Dump all databases together (use at most 3 connections)"
   echo " -D <database>       Dump single database <database>"
   echo " -I                  Ignore MySQL information_schema database (ignored if -D or -T pgsql is used)"
+  echo "                     Ignore MongoDB local database (ignored if -D or -T pgsql is used)"
   echo " -h                  Show this help"
   echo ""
 }
@@ -102,8 +106,10 @@ prepare()
   # set databasetype if unset
   MYSQL=false
   POSTGRESQL=false
+  MONGODB=false
   [ "${DATABASE_TYPE,,}" = "mysql" ] && MYSQL=true
   [ "${DATABASE_TYPE,,}" = "pgsql" ] && POSTGRESQL=true
+  [ "${DATABASE_TYPE,,}" = "mongodb" ] && MONGODB=true
 
   # disable all database backup if unset
   [ -z ${ALLDATABASES} ] && ALLDATABASES=false
@@ -127,7 +133,7 @@ prepare()
   [ -z ${SSH_USER} ] && SSH_USER=$(id -u -n)
   
   # check if mysql or posgresql selected
-  ( ! ${MYSQL} && ! ${POSTGRESQL} ) && echo "You should either select MySQL or PostgreSQL as database type." && echo "Start sql-ssh-backup with the \"-h\" option to show usage/help." && exit 1
+  ( ! ${MYSQL} && ! ${POSTGRESQL} && ! ${MONGODB} ) && echo "You should either select MySQL, PostgreSQL or MongoDB as database type." && echo "Start sql-ssh-backup with the \"-h\" option to show usage/help." && exit 1
 
   # check ssh identity file
   ([ -z ${SSH_IDENTITY} ] || [ ! -f ${SSH_IDENTITY} ]) && echo "SSH identity file (private key) not set or not found." && ERROR=$(( $ERROR + 1 ))
@@ -158,14 +164,17 @@ prepare()
     ${POSTGRESQL} && ${COMPRESS} && SQL_DUMP_OPTS="--format custom" && BACKUPEXT="dump"
   fi
 
+  # use custom dump format if plainfile option unset (only for single dump)
+  ${MONGODB} && BACKUPEXT="archive"
+
   # check for installed SSH-Client
   which ssh > /dev/null 2>&1 || (echo "SSH not found! Skipping all backups!" >&2 && exit 1)
 
-  # check for installed bzip2 while using mysql
-  ${MYSQL} && ${COMPRESS} && (which bzip2 > /dev/null 2>&1 || (echo "bzip2 not found and compression enabled! Skipping all backups!" >&2 && exit 1))
+  # check for installed bzip2 while using mysql or mongodb
+  (${MYSQL} || ${MONGODB}) && ${COMPRESS} && (which bzip2 > /dev/null 2>&1 || (echo "bzip2 not found and compression enabled! Skipping all backups!" >&2 && exit 1))
 
-  # check for installed xz while using mysql/pgsql
-  ( ${MYSQL} || ${POSTGRESQL} ) && ${COMPRESS_XZ} && (which xz > /dev/null 2>&1 || (echo "xz not found and compression enabled! Skipping all backups!" >&2 && exit 1))
+  # check for installed xz while using mysql,pgsql or mongodb
+  ( ${MYSQL} || ${POSTGRESQL} || ${MONGODB} ) && ${COMPRESS_XZ} && (which xz > /dev/null 2>&1 || (echo "xz not found and compression enabled! Skipping all backups!" >&2 && exit 1))
 
   # abort if too man errors occured
   [ ${ERROR} -ge 1 ] && echo && echo "Too man errors occured. Aborting..." && exit 1
@@ -268,7 +277,8 @@ get_databaselist()
 {
   ${MYSQL} && local GET_DATABASE_LIST_COMMAND="mysql ${SQL_OPTS} --host ${SQL_HOST} -Bse 'show databases'"
   ${POSTGRESQL} && local GET_DATABASE_LIST_COMMAND="${SQL_OPTS_ENVIRONMENT}psql --host ${SQL_HOST} ${SQL_OPTS} --tuples-only --no-align --dbname postgres --command 'SELECT datname FROM pg_database WHERE datistemplate IS FALSE;'"
-  connection_wrapper "${GET_DATABASE_LIST_COMMAND}" 
+  ${MONGODB} && local GET_DATABASE_LIST_COMMAND="mongo -quiet -eval 'db.adminCommand({listDatabases:1,nameOnly:1}).databases.forEach(function(n){print(n.name);});'"
+  connection_wrapper "${GET_DATABASE_LIST_COMMAND}"
   [ $? -ne 0 ] && echo "$ret: Can't get database list:" >&2 && echo ${LAST_RETURN} >&2 && exit 1
 }
 
@@ -284,6 +294,8 @@ dump_database()
       ${POSTGRESQL} && local DUMP_DATABASE_COMMAND="${SQL_OPTS_ENVIRONMENT}pg_dump --blobs --create --encoding UTF-8 --host ${SQL_HOST} ${SQL_OPTS} ${SQL_DUMP_OPTS} ${1}"
     fi
   fi
+  ${MONGODB} && local DUMP_DATABASE_COMMAND="mongodump --quiet --db ${1} --archive"
+
   if [[ ${1} == "--all-databases" ]]; then
     connection_wrapper "${DUMP_DATABASE_COMMAND}" "${BACKUPDIR}/dump.${BACKUPEXT}"
   else
@@ -310,13 +322,15 @@ check_database_dump()
     else
       ${COMPRESS} || LAST_RETURN=$(tail -3 "${BACKUPDIR}/${1}.${BACKUPEXT}" | head -1 | grep -e "^-- PostgreSQL database dump complete" 2>&1)
     fi
+  elif ${MONGODB}; then
+    LAST_RETURN=$(tail -z -c 4 "${BACKUPDIR}/${1}.${BACKUPEXT}" | hexdump -v -e '/1 "%02X"' | grep -e "^FFFFFFFF$" 2>&1)
   fi
   local ret=$?
   [ ${ret} -ne 0 ] && echo "Dump-Check of database \"${1}\" failed." >&2 && echo ${LAST_RETURN} >&2
   return ${ret}
 }
 
-# compress the dump file of a single database (for mysql)
+# compress the dump file of a single database (for mysql and mongodb)
 # param[in] $1 database-name
 compress_database()
 {
@@ -358,11 +372,13 @@ dump_databases_by_list()
   do
     # Ignore information_schema databse if option selected
     ${MYSQL} && ${IGNORE_INFORMATIONSCHEMA} && [ ${DATABASE} == 'information_schema' ] && continue
+    # Ignore local database if option selected
+    ${MONGODB} && ${IGNORE_INFORMATIONSCHEMA} && [ ${DATABASE} == 'local' ] && continue
     # Dump database
     dump_database ${DATABASE}
     [ $? -eq 0 ] && check_database_dump ${DATABASE}
-    [ $? -eq 0 ] && ((${MYSQL} && (${COMPRESS} || ${COMPRESS_XZ})) || (${POSTGRESQL} && ${COMPRESS_XZ})) && compress_database ${DATABASE}
-    [ $? -eq 0 ] && ((${MYSQL} && (${COMPRESS} || ${COMPRESS_XZ})) || (${POSTGRESQL} && ${COMPRESS_XZ})) && check_compressed_database ${DATABASE}
+    [ $? -eq 0 ] && (((${MYSQL} || ${MONGODB}) && (${COMPRESS} || ${COMPRESS_XZ})) || (${POSTGRESQL} && ${COMPRESS_XZ})) && compress_database ${DATABASE}
+    [ $? -eq 0 ] && (((${MYSQL} || ${MONGODB}) && (${COMPRESS} || ${COMPRESS_XZ})) || (${POSTGRESQL} && ${COMPRESS_XZ})) && check_compressed_database ${DATABASE}
   done
 }
 
@@ -371,8 +387,8 @@ dump_all_databases()
 {
   dump_database "--all-databases"
   [ $? -eq 0 ] && check_database_dump dump
-  [ $? -eq 0 ] && ((${MYSQL} && (${COMPRESS} || ${COMPRESS_XZ})) || (${POSTGRESQL} && ${COMPRESS_XZ})) && compress_database dump
-  [ $? -eq 0 ] && ((${MYSQL} && (${COMPRESS} || ${COMPRESS_XZ})) || (${POSTGRESQL} && ${COMPRESS_XZ})) && check_compressed_database dump
+  [ $? -eq 0 ] && (((${MYSQL} || ${MONGODB}) && (${COMPRESS} || ${COMPRESS_XZ})) || (${POSTGRESQL} && ${COMPRESS_XZ})) && compress_database dump
+  [ $? -eq 0 ] && (((${MYSQL} || ${MONGODB}) && (${COMPRESS} || ${COMPRESS_XZ})) || (${POSTGRESQL} && ${COMPRESS_XZ})) && check_compressed_database dump
 }
 
 # cleanup local and remote
