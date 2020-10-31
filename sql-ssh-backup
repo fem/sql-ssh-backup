@@ -113,10 +113,10 @@ prepare()
 
   # disable compression (default) if unset
   [ -z ${COMPRESS} ] && COMPRESS=false
-  
+
   # disable xz compression (default) if unset
   [ -z ${COMPRESS_XZ} ] && COMPRESS_XZ=false
-  
+
   # disable ignore information schema (default) if unset
   [ -z ${IGNORE_INFORMATIONSCHEMA} ] && IGNORE_INFORMATIONSCHEMA=false
 
@@ -125,7 +125,7 @@ prepare()
 
   # set SSH-user to current user if unset
   [ -z ${SSH_USER} ] && SSH_USER=$(id -u -n)
-  
+
   # check if mysql or posgresql selected
   ( ! ${MYSQL} && ! ${POSTGRESQL} ) && echo "You should either select MySQL or PostgreSQL as database type." && echo "Start sql-ssh-backup with the \"-h\" option to show usage/help." && exit 1
 
@@ -170,7 +170,7 @@ prepare()
   # abort if too man errors occured
   [ ${ERROR} -ge 1 ] && echo && echo "Too man errors occured. Aborting..." && exit 1
 
-  # 
+  # Cleanup or create backup directory
   if [ -d ${BACKUPDIR} ]; then
     rm -f ${BACKUPDIR}/*
   fi
@@ -182,7 +182,7 @@ prepare()
   # check ssh port
   [[ ! "x${SSH_PORT}" =~ ^x[0-9]*$ ]] && echo "SSH-Port wrong, use only numeric value." && ERROR=$(( $ERROR + 1 ))
 
-  # set SSH/SCP connection options	
+  # set SSH/SCP connection options
   SSH_OPTS="-C -i ${SSH_IDENTITY}"
   SCP_OPTS=${SSH_OPTS}
   [ ${SSH_PORT} ] && SSH_OPTS="${SSH_OPTS} -p ${SSH_PORT}"
@@ -356,7 +356,7 @@ dump_databases_by_list()
 {
   for DATABASE in ${1}
   do
-    # Ignore information_schema databse if option selected
+    # Ignore information_schema database if option selected
     ${MYSQL} && ${IGNORE_INFORMATIONSCHEMA} && [ ${DATABASE} == 'information_schema' ] && continue
     # Dump database
     dump_database ${DATABASE}
@@ -411,12 +411,12 @@ while getopts ":hT:l:s:P:i:m:u:p:d:te:cjoD:I" Option; do
     o ) ALLDATABASES=true;;
     D ) DATABASE=${OPTARG};;
     I ) IGNORE_INFORMATIONSCHEMA=true;;
-    * ) echo "Unknown parameter \"-${OPTARG}\"!"; 
-	print_usage
-	exit 1;;
+    * ) echo "Unknown parameter \"-${OPTARG}\"!";
+        print_usage
+        exit 1;;
   esac
 done
-shift $(($OPTIND - 1)) 
+shift $(($OPTIND - 1))
 
 prepare
 
