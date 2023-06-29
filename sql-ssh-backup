@@ -368,6 +368,7 @@ check_compressed_database()
 # param[in] $1 list of databases (IFS-seperated)
 dump_databases_by_list()
 {
+  local ret_all=0
   for DATABASE in ${1}
   do
     # Ignore information_schema database if option selected
@@ -376,19 +377,24 @@ dump_databases_by_list()
     ${MONGODB} && ${IGNORE_INFORMATIONSCHEMA} && [ ${DATABASE} == 'local' ] && continue
     # Dump database
     dump_database ${DATABASE}
-    [ $? -eq 0 ] && check_database_dump ${DATABASE}
+    local ret=$?
+    [ ${ret} -ne 0 ] && ret_all=${ret}
+    [ ${ret} -eq 0 ] && check_database_dump ${DATABASE}
     [ $? -eq 0 ] && (((${MYSQL} || ${MONGODB}) && (${COMPRESS} || ${COMPRESS_XZ})) || (${POSTGRESQL} && ${COMPRESS_XZ})) && compress_database ${DATABASE}
     [ $? -eq 0 ] && (((${MYSQL} || ${MONGODB}) && (${COMPRESS} || ${COMPRESS_XZ})) || (${POSTGRESQL} && ${COMPRESS_XZ})) && check_compressed_database ${DATABASE}
   done
+  return ${ret_all}
 }
 
 # dump all databases together
 dump_all_databases()
 {
   dump_database "--all-databases"
-  [ $? -eq 0 ] && check_database_dump dump
+  local ret=$?
+  [ ${ret} -eq 0 ] && check_database_dump dump
   [ $? -eq 0 ] && (((${MYSQL} || ${MONGODB}) && (${COMPRESS} || ${COMPRESS_XZ})) || (${POSTGRESQL} && ${COMPRESS_XZ})) && compress_database dump
   [ $? -eq 0 ] && (((${MYSQL} || ${MONGODB}) && (${COMPRESS} || ${COMPRESS_XZ})) || (${POSTGRESQL} && ${COMPRESS_XZ})) && check_compressed_database dump
+  return ${ret}
 }
 
 # cleanup local and remote
@@ -434,6 +440,7 @@ while getopts ":hT:l:s:P:i:m:u:p:d:te:cjoD:I" Option; do
 done
 shift $(($OPTIND - 1))
 
+ret_global=0
 prepare
 
 # run dump_globals and get_databaselist while not getting full dump or single database
@@ -445,11 +452,13 @@ fi
 # dump all databases in one file on demand, else dump every database separately
 if ${ALLDATABASES}; then
   dump_all_databases
+  ret_global=$?
 else
   # dump single database on request
   [ -n "${DATABASE}" ] && LAST_RETURN=${DATABASE}
   dump_databases_by_list "${LAST_RETURN}"
+  ret_global=$?
 fi
 
 cleanup
-exit 0
+exit ${ret_global}
