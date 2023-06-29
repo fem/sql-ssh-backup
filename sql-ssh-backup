@@ -217,7 +217,7 @@ EOF_TEMP_CONFIGFILE
     # strip directories from temporary my.cnf-file
     TEMP_CONFIG=$(basename ${TEMP_CONFIGFILE})
     SQL_OPTS="--defaults-extra-file=~/${TEMP_CONFIG}"
-    [ -n ${MAX_ALLOWED_PACKET} ] && SQL_OPTS_DUMP="--max-allowed-packet=${MAX_ALLOWED_PACKET}"
+    [ ${MAX_ALLOWED_PACKET} ] && SQL_OPTS_DUMP="--max-allowed-packet=${MAX_ALLOWED_PACKET}"
   fi
 
   # check if Postgres-user and -password is set
